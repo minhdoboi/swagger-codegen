@@ -262,7 +262,9 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
 
                         for (String templateName : config.modelTemplateFiles().keySet()) {
                             String suffix = config.modelTemplateFiles().get(templateName);
-                            String filename = config.modelFileFolder() + File.separator + config.toModelFilename(name) + suffix;
+                            java.nio.file.Path path = config.toModelFilepath(name);
+                            String filename = config.modelFileFolderPath().resolve(path).toString() + suffix;
+
                             if (!config.shouldOverwrite(filename)) {
                                 continue;
                             }
@@ -798,8 +800,10 @@ public class DefaultGenerator extends AbstractGenerator implements Generator {
             Model mm = definitions.get(key);
             CodegenModel cm = config.fromModel(key, mm, allDefinitions);
             Map<String, Object> mo = new HashMap<String, Object>();
+            String packageName = config.toModelPackage(key);
+            mo.put("package", config.toModelPackage(key));
             mo.put("model", cm);
-            mo.put("importPath", config.toModelImport(cm.classname));
+            mo.put("importPath", config.toModelImport(packageName, cm.classname));
             models.add(mo);
 
             allImports.addAll(cm.imports);

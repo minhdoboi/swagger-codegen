@@ -12,9 +12,8 @@ module {{package}}.{{classname}}
 {{/model}}
 {{/models}}
 
-import Data.Aeson
+import qualified Data.Aeson
 import GHC.Generics
-import Test.QuickCheck
 {{#imports}}import {{import}}
 {{/imports}}
 
@@ -26,9 +25,7 @@ data {{classname}} = {{classname}}
     , {{/hasMore}}{{/vars}}
     } deriving (Show, Eq, Generic)
 
-instance FromJSON {{classname}}
-instance ToJSON {{classname}}
-instance Arbitrary {{classname}} where
-    arbitrary = {{classname}} <$> {{#vars}}arbitrary{{#hasMore}} <*> {{/hasMore}}{{/vars}}
+instance Data.Aeson.FromJSON {{classname}}
+instance Data.Aeson.ToJSON {{classname}}
 {{/model}}
 {{/models}}

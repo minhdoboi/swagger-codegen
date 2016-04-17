@@ -6,6 +6,7 @@ import io.swagger.models.Swagger;
 import io.swagger.models.auth.SecuritySchemeDefinition;
 import io.swagger.models.properties.Property;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,17 +42,23 @@ public interface CodegenConfig {
 
     String modelFileFolder();
 
+    Path modelFileFolderPath();
+
     String modelTestFileFolder();
 
     String modelDocFileFolder();
 
     String modelPackage();
 
+    String toModelPackage(String name);
+
     String toApiName(String name);
 
     String toApiVarName(String name);
 
     String toModelName(String name);
+
+    String toCanonicalModelName(String name);
 
     String toParamName(String name);
 
@@ -119,6 +126,8 @@ public interface CodegenConfig {
 
     String toModelFilename(String name);
 
+    Path toModelFilepath(String name);
+
     String toApiTestFilename(String name);
 
     String toModelTestFilename(String name);
@@ -128,6 +137,8 @@ public interface CodegenConfig {
     String toModelDocFilename(String name);
     
     String toModelImport(String name);
+
+    String toModelImport(String packageName, String name);
 
     String toApiImport(String name);
 

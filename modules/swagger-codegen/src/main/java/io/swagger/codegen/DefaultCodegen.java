@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.nio.file.*;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.regex.Matcher;
@@ -205,6 +207,10 @@ public class DefaultCodegen {
 
     public String modelPackage() {
         return modelPackage;
+    }
+
+    public String toModelPackage(String name) {
+        return modelPackage();
     }
 
     public String apiPackage() {
@@ -479,6 +485,10 @@ public class DefaultCodegen {
         } else {
             return modelPackage() + "." + name;
         }
+    }
+
+    public String toModelImport(String packageName, String name) {
+        return packageName + "." + name;
     }
 
     /**
@@ -890,6 +900,12 @@ public class DefaultCodegen {
         return initialCaps(modelNamePrefix + name + modelNameSuffix);
     }
 
+    public String toCanonicalModelName(String name) {
+        return toModelName(name);
+    }
+
+    public String toRelativeModelName(String name) { return toModelName(name); }
+
     /**
      * Convert Swagger Model object to Codegen Model object without providing all model definitions
      *
@@ -957,7 +973,7 @@ public class DefaultCodegen {
                 final String parentRef = parent.getSimpleRef();
                 m.parentSchema = parentRef;
                 m.parent = toModelName(parent.getSimpleRef());
-                addImport(m, m.parent);
+                addImport(m, toCanonicalModelName(parent.getSimpleRef()));
                 if (allDefinitions != null) {
                     final Model parentModel = allDefinitions.get(m.parentSchema);
                     if (supportsInheritance) {
@@ -974,7 +990,7 @@ public class DefaultCodegen {
                 for (RefModel _interface : composed.getInterfaces()) {
                     final String interfaceRef = toModelName(_interface.getSimpleRef());
                     m.interfaces.add(interfaceRef);
-                    addImport(m, interfaceRef);
+                    addImport(m, toCanonicalModelName(_interface.getSimpleRef()));
                     if (allDefinitions != null) {
                         final Model interfaceModel = allDefinitions.get(interfaceRef);
                         if (supportsInheritance) {
@@ -1870,7 +1886,8 @@ public class DefaultCodegen {
                     if (typeMapping.containsKey(name)) {
                         name = typeMapping.get(name);
                     } else {
-                        name = toModelName(name);
+                        name = toRelativeModelName(name);
+
                         if (defaultIncludes.contains(name)) {
                             imports.add(name);
                         }
@@ -2013,6 +2030,14 @@ public class DefaultCodegen {
             secs.add(sec);
         }
         return secs;
+    }
+
+    public Path modelFileFolderPath() {
+        return Paths.get(modelFileFolder());
+    }
+
+    public Path toModelFilepath(String name) {
+        return Paths.get(toModelFilename(name));
     }
 
     protected void setReservedWordsLowerCase(List<String> words) {

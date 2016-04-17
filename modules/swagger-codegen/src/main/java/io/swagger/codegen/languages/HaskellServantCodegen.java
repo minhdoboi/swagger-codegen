@@ -6,8 +6,11 @@ import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Swagger;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.io.File;
+import java.util.stream.Collectors;
 
 public class HaskellServantCodegen extends DefaultCodegen implements CodegenConfig {
 
@@ -121,13 +124,8 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
      */
     supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
     supportingFiles.add(new SupportingFile("stack.mustache", "", "stack.yaml"));
-    supportingFiles.add(new SupportingFile("haskell-servant-codegen.mustache", "", "haskell-servant-codegen.cabal"));
     supportingFiles.add(new SupportingFile("Setup.mustache", "", "Setup.hs"));
     supportingFiles.add(new SupportingFile("LICENSE", "", "LICENSE"));
-    supportingFiles.add(new SupportingFile("Apis.mustache", "lib", "Apis.hs"));
-    supportingFiles.add(new SupportingFile("Utils.mustache", "lib", "Utils.hs"));
-    supportingFiles.add(new SupportingFile("Client.mustache", "client", "Main.hs"));
-    supportingFiles.add(new SupportingFile("Server.mustache", "server", "Main.hs"));
 
     /**
      * Language Specific Primitives.  These types will not trigger imports by
@@ -171,6 +169,53 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     cliOptions.add(new CliOption(CodegenConstants.API_PACKAGE, CodegenConstants.API_PACKAGE_DESC));
   }
 
+  @Override
+  public void preprocessSwagger(Swagger swagger) {
+    // From the title, compute a reasonable name for the package and the API
+    String title = swagger.getInfo().getTitle();
+
+    // Drop any API suffix
+    if(title == null) {
+      title = "Swagger";
+    } else {
+      title = title.trim();
+      if (title.toUpperCase().endsWith("API")) {
+        title = title.substring(0, title.length() - 3);
+      }
+    }
+
+    String[] words = title.split(" ");
+
+    // The package name is made by appending the lowercased words of the title interspersed with dashes
+    List<String> wordsLower = new ArrayList<String>();
+    for (String word : words) {
+      wordsLower.add(word.toLowerCase());
+    }
+    String cabalName = joinStrings("-", wordsLower);
+
+    // The API name is made by appending the capitalized words of the title
+    List<String> wordsCaps = new ArrayList<String>();
+    for (String word : words) {
+      wordsCaps.add(word.substring(0, 1).toUpperCase() + word.substring(1));
+    }
+    String apiName = joinStrings("", wordsCaps);
+
+    // Set the filenames to write for the API
+    supportingFiles.add(new SupportingFile("haskell-servant-codegen.mustache", "", cabalName + ".cabal"));
+    supportingFiles.add(new SupportingFile("Apis.mustache", "lib/"+ apiPackage(), "Apis.hs"));
+    supportingFiles.add(new SupportingFile("Utils.mustache", "lib/"+ apiPackage(), "Utils.hs"));
+
+
+    additionalProperties.put("title", apiName);
+    additionalProperties.put("titleLower", apiName.substring(0, 1).toLowerCase() + apiName.substring(1));
+    additionalProperties.put("cabalPackage", cabalName);
+
+    // Due to the way servant resolves types, we need a high context stack limit
+    additionalProperties.put("contextStackLimit", swagger.getPaths().size() * 2 + 300);
+
+    super.preprocessSwagger(swagger);
+  }
+
   /**
    * Escapes a reserved word as defined in the `reservedWords` array. Handle escaping
    * those terms here.  This logic is only called if a variable matches the reseved words
@@ -210,14 +255,14 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     if(p instanceof ArrayProperty) {
       ArrayProperty ap = (ArrayProperty) p;
       Property inner = ap.getItems();
-      return "[" + getTypeDeclaration(inner) + "]";
+      return "[" + toModelName(getTypeDeclaration(inner)) + "]";
     }
     else if (p instanceof MapProperty) {
       MapProperty mp = (MapProperty) p;
       Property inner = mp.getAdditionalProperties();
-      return "Map.Map String " + getTypeDeclaration(inner);
+      return "Map.Map String " + toModelName(getTypeDeclaration(inner));
     }
-    return super.getTypeDeclaration(p);
+    return toModelName(super.getTypeDeclaration(p));
   }
 
   /**
@@ -238,29 +283,99 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     }
     else
       type = swaggerType;
-    return toModelName(type);
+    return toRelativeModelName(type);
   }
 
   private String capturePath(String path, List<CodegenParameter> pathParams) {
     for (CodegenParameter p : pathParams) {
       String pName = "{"+p.baseName+"}";
       if (path.indexOf(pName) >= 0) {
-        path = path.replace(pName, "Capture " + "\""+p.baseName+"\" " + p.dataType);
+        path = path.replace(pName, "Servant.Capture " + "\""+p.baseName+"\" " + p.dataType);
       }
     }
     return path;
   }
 
+  @Override
+  public Path toModelFilepath(String name) {
+    return Paths.get(capitalizeModel(name).replace(".", File.separator));
+  }
+
+  @Override
+  public String toModelFilename(String name) {
+    return capitalizeModel(name);
+  }
+
+  @Override
+  public String toModelPackage(String name) {
+    String modelPackage = extractModelPackage(name);
+    if (modelPackage.length() > 0) {
+      return modelPackage() + "." + modelPackage;
+    }
+    return modelPackage();
+  }
+
+  @Override
+  public String toModelName(final String name) {
+    return initialCaps(modelNamePrefix + extractModelName(name) + modelNameSuffix);
+  }
+
+  @Override
+  public String toCanonicalModelName(String name) {
+    return toModelPackage(name) + "." + toModelName(name);
+  }
+
+  @Override
+  public String toRelativeModelName(String name) {
+    String modelPackage = extractModelPackage(name);
+    if (modelPackage.length() > 0) {
+      return extractModelPackage(name) + "." + toModelName(name);
+    } else {
+      return toModelName(name);
+    }
+  }
+
+  private String extractModelPackage(String name) {
+    int idx = name.lastIndexOf('.');
+    String modelPackage = "";
+    if (idx > 0 ) {
+      modelPackage = capitalizeModel(name).substring(0, idx);
+    }
+    return modelPackage;
+  }
+
+  private String extractModelName(String name) {
+    int idx = name.lastIndexOf('.');
+    String result = name;
+    if (idx > 0 ) {
+      result = capitalizeModel(name).substring(idx + 1);
+    }
+    return result;
+  }
+
+  // capitalize package.name to Package.Name
+  private String capitalizeModel(String name) {
+    String[] parts = name.split("\\.");
+    if (parts.length > 1) {
+      return Arrays.asList(parts)
+              .stream()
+              .map(this::initialCaps)
+              .collect(Collectors.joining("."));
+    } else {
+      return initialCaps(name);
+    }
+  }
+
   private String queryPath(String path, List<CodegenParameter> queryParams) {
     for (CodegenParameter p : queryParams) {
-      path += " :> QueryParam \"" + p.baseName + "\" " + p.dataType;
+      path += " :> Servant.QueryParam \"" + p.baseName + "\" " + p.dataType;
     }
     return path;
   }
 
   private String bodyPath(String path, List<CodegenParameter> bodyParams) {
     for (CodegenParameter p : bodyParams) {
-      path += " :> ReqBody '[JSON] " + p.dataType;
+      path += " :> Servant.ReqBody '[Servant.JSON] " + toModelName(p.dataType);
     }
     return path;
   }
@@ -274,14 +389,14 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
       names += p.baseName;
     }
     if(formParams.size() > 0){
-      path += " :> ReqBody '[FormUrlEncoded] " + names;
+      path += " :> Servant.ReqBody '[Servant.FormUrlEncoded] " + names;
     }
     return path;
   }
 
   private String headerPath(String path, List<CodegenParameter> headerParams) {
     for (CodegenParameter p : headerParams) {
-      path += " :> Header \"" + p.baseName + "\" " + p.dataType;
+      path += " :> Servant.Header \"" + p.baseName + "\" " + p.dataType;
     }
     return path;
   }
@@ -297,7 +412,7 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
   }
 
   private String addReturnPath(String path, String httpMethod, String returnType) {
-    return path + " :> " + upperCaseFirst(httpMethod) + " '[JSON] " + filterReturnType(returnType);
+    return path + " :> Servant." + upperCaseFirst(httpMethod) + " '[Servant.JSON] " + filterReturnType(returnType);
   }
 
   private String joinStrings(String sep, List<String> ss) {

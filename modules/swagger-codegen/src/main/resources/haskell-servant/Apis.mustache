@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Apis (
+module {{apiPackage}}.Apis (
       api
     , API
     ) where
@@ -15,10 +15,6 @@ import {{package}}.{{classname}} ({{classname}})
 {{/apiInfo}}
 
 import Data.Proxy
-import Servant.API
-import Test.QuickCheck
-import qualified Data.Map as Map
-import Utils
 
 type API = {{#apiInfo}}{{#apis}}{{classname}}{{#hasMore}} :<|> {{/hasMore}}{{/apis}}{{/apiInfo}}
 
