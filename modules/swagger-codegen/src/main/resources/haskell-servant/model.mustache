@@ -20,7 +20,7 @@ import GHC.Generics
 
 -- | {{& description}}
 data {{classname}} = {{classname}}
-    { {{#vars}}{{& name}} :: {{datatype}} -- ^ {{& description}} {{#hasMore}}
+    { {{#vars}}{{& name}} :: {{^required}}Maybe {{/required}}{{datatype}} -- ^ {{& description}} {{#hasMore}}
     , {{/hasMore}}{{/vars}}
     } deriving (Show, Eq, Generic)
 
