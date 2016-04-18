@@ -18,6 +18,8 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
   // source folder where to write the files
   protected String sourceFolder = "src";
   protected String apiVersion = "0.0.1";
+  public static final String APPEND_HEADER = "appendHeader";
+  public Optional<String> supplementalHeader = Optional.empty();
 
   /**
    * Configures the type of generator.
@@ -168,6 +170,15 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
 
     cliOptions.add(new CliOption(CodegenConstants.MODEL_PACKAGE, CodegenConstants.MODEL_PACKAGE_DESC));
     cliOptions.add(new CliOption(CodegenConstants.API_PACKAGE, CodegenConstants.API_PACKAGE_DESC));
+    cliOptions.add(new CliOption(APPEND_HEADER, "append header argument"));
+  }
+
+  @Override
+  public void processOpts() {
+    super.processOpts();
+    if (additionalProperties.containsKey(APPEND_HEADER)) {
+      supplementalHeader = Optional.of(additionalProperties.get(APPEND_HEADER).toString());
+    }
   }
 
   @Override
@@ -418,6 +429,11 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
         }
         type.add("Maybe " + paramType);
       }
+
+      supplementalHeader.ifPresent(header -> {
+        path.add("Servant.Header \"" + header + "\" String");
+        type.add("Maybe String"); // FIXME
+      });
 
       // Add the HTTP method and return type
       String returnType = op.returnType;
