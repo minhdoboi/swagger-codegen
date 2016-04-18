@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      lib
-  exposed-modules:   {{apiPackage}}.Apis {{#models}}{{#model}}
+  exposed-modules:   {{apiPackage}}.Utils,
+                     {{apiPackage}}.Apis {{#models}}{{#model}}
                      , {{importPath}}{{/model}}{{/models}}
 {{#apiInfo}}
 {{#apis}}
@@ -25,9 +26,11 @@ library
   ghc-options:         -Wall
   build-depends:       base
                      , aeson
+                     , http-client
                      , text
                      , split
                      , containers
+                     , mtl
                      , network-uri
                      , QuickCheck
                      , servant

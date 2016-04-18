@@ -6,9 +6,7 @@
 
 {{#models}}
 {{#model}}
-module {{package}}.{{classname}}
-    ( {{classname}} (..)
-    ) where
+module {{package}}.{{classname}} where
 {{/model}}
 {{/models}}
 
@@ -20,8 +18,9 @@ import GHC.Generics
 {{#models}}
 {{#model}}
 
+-- | {{& description}}
 data {{classname}} = {{classname}}
-    { {{#vars}}{{& name}} :: {{datatype}}{{#hasMore}}
+    { {{#vars}}{{& name}} :: {{datatype}} -- ^ {{& description}} {{#hasMore}}
     , {{/hasMore}}{{/vars}}
     } deriving (Show, Eq, Generic)
 

@@ -5,6 +5,7 @@ import io.swagger.models.properties.*;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Swagger;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -191,14 +192,14 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     for (String word : words) {
       wordsLower.add(word.toLowerCase());
     }
-    String cabalName = joinStrings("-", wordsLower);
+    String cabalName = wordsLower.stream().collect(Collectors.joining("-"));
 
     // The API name is made by appending the capitalized words of the title
     List<String> wordsCaps = new ArrayList<String>();
     for (String word : words) {
       wordsCaps.add(word.substring(0, 1).toUpperCase() + word.substring(1));
     }
-    String apiName = joinStrings("", wordsCaps);
+    String apiName = wordsCaps.stream().collect(Collectors.joining());
 
     // Set the filenames to write for the API
     supportingFiles.add(new SupportingFile("haskell-servant-codegen.mustache", "", cabalName + ".cabal"));
@@ -286,16 +287,6 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     return toRelativeModelName(type);
   }
 
-  private String capturePath(String path, List<CodegenParameter> pathParams) {
-    for (CodegenParameter p : pathParams) {
-      String pName = "{"+p.baseName+"}";
-      if (path.indexOf(pName) >= 0) {
-        path = path.replace(pName, "Servant.Capture " + "\""+p.baseName+"\" " + p.dataType);
-      }
-    }
-    return path;
-  }
-
   @Override
   public Path toModelFilepath(String name) {
     return Paths.get(capitalizeModel(name).replace(".", File.separator));
@@ -357,8 +348,7 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
   private String capitalizeModel(String name) {
     String[] parts = name.split("\\.");
     if (parts.length > 1) {
-      return Arrays.asList(parts)
-              .stream()
+      return Arrays.stream(parts)
               .map(this::initialCaps)
               .collect(Collectors.joining("."));
     } else {
@@ -366,95 +356,153 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     }
   }
 
-  private String queryPath(String path, List<CodegenParameter> queryParams) {
-    for (CodegenParameter p : queryParams) {
-      path += " :> Servant.QueryParam \"" + p.baseName + "\" " + p.dataType;
-    }
-    return path;
-  }
-
-  private String bodyPath(String path, List<CodegenParameter> bodyParams) {
-    for (CodegenParameter p : bodyParams) {
-      path += " :> Servant.ReqBody '[Servant.JSON] " + toModelName(p.dataType);
-    }
-    return path;
-  }
-
-  private String formPath(String path, List<CodegenParameter> formParams) {
-    String names = "Form";
-    for (CodegenParameter p : formParams) {
-      if(p.dataType.equals("FilePath")){
-        // file data processing
-      }
-      names += p.baseName;
-    }
-    if(formParams.size() > 0){
-      path += " :> Servant.ReqBody '[Servant.FormUrlEncoded] " + names;
-    }
-    return path;
-  }
-
-  private String headerPath(String path, List<CodegenParameter> headerParams) {
-    for (CodegenParameter p : headerParams) {
-      path += " :> Servant.Header \"" + p.baseName + "\" " + p.dataType;
-    }
-    return path;
-  }
-
-
-  private String filterReturnType(String rt) {
-    if (rt == null || rt.equals("null")) {
-      return "()";
-    } else if (rt.indexOf(" ") >= 0) {
-      return "(" + rt + ")";
-    }
-    return rt;
-  }
-
-  private String addReturnPath(String path, String httpMethod, String returnType) {
-    return path + " :> Servant." + upperCaseFirst(httpMethod) + " '[Servant.JSON] " + filterReturnType(returnType);
-  }
-
-  private String joinStrings(String sep, List<String> ss) {
-    StringBuilder sb = new StringBuilder();
-    for (String s : ss) {
-      if (sb.length() > 0) {
-        sb.append(sep);
-      }
-      sb.append(s);
-    }
-    return sb.toString();
-  }
-
-  private String replacePathSplitter(String path) {
-    String[] ps = path.replaceFirst("/", "").split("/", 0);
-    List<String> rs = new ArrayList<String>();
-    for (String p : ps) {
-      if (p.indexOf("{") < 0) {
-        rs.add("\"" + p + "\"");
-      } else {
-        rs.add(p);
-      }
-    }
-    return joinStrings(" :> ", rs);
-  }
-
-  private String upperCaseFirst(String str) {
-    char[] array = str.toLowerCase().toCharArray();
-    array[0] = Character.toUpperCase(array[0]);
-    return new String(array);
-  }
-
-  private String parseScheme(String basePath) {
-    return "Http";
-  }
 
   @Override
   public CodegenOperation fromOperation(String resourcePath, String httpMethod, Operation operation, Map<String, Model> definitions, Swagger swagger){
     CodegenOperation op = super.fromOperation(resourcePath, httpMethod, operation, definitions, swagger);
-    String path = op.path;
-    op.nickname = addReturnPath(headerPath(formPath(bodyPath(queryPath(capturePath(replacePathSplitter(path), op.pathParams), op.queryParams), op.bodyParams), op.formParams), op.headerParams), op.httpMethod, op.returnType);
+    RouteBuilder rb = new RouteBuilder(op).build();
+    op.vendorExtensions.put("x-routeType", rb.path.stream().collect(Collectors.joining(" :> ")));
+    op.vendorExtensions.put("x-clientType", rb.type.stream().collect(Collectors.joining(" -> ")));
     return op;
+  }
+
+  class RouteBuilder {
+    CodegenOperation op;
+    List<String> path = new ArrayList<>();
+    List<String> type = new ArrayList<>();
+
+    public RouteBuilder(CodegenOperation op) {
+      this.op = op;
+    }
+
+    public RouteBuilder build() {
+      path = pathToServantRoute(op.path, op.pathParams);
+      type = pathToClientType(op.path, op.pathParams);
+
+      // Query parameters appended to routes
+      for (CodegenParameter param : op.queryParams) {
+        String paramType = param.dataType;
+        if(param.isListContainer != null && param.isListContainer) {
+          paramType = makeQueryListType(paramType, param.collectionFormat);
+        }
+        path.add("Servant.QueryParam \"" + param.baseName + "\" " + paramType);
+        type.add("Maybe " + param.dataType);
+      }
+
+      // Either body or form data parameters appended to route
+      // As far as I know, you cannot have two ReqBody routes.
+      // Is it possible to have body params AND have form params?
+      String bodyType = null;
+      if (op.getHasBodyParam()) {
+        for (CodegenParameter param : op.bodyParams) {
+          path.add("Servant.ReqBody '[Servant.JSON] " + toModelName(param.dataType));
+          bodyType = toModelName(param.dataType);
+        }
+      } else if(op.getHasFormParams()) {
+        // Use the FormX data type, where X is the conglomerate of all things being passed
+        String formName = "Servant.Form" + camelize(op.operationId);
+        bodyType = formName;
+        path.add("Servant.ReqBody '[Servant.FormUrlEncoded] " + formName);
+      }
+      if(bodyType != null) {
+        type.add(bodyType);
+      }
+
+      // Special headers appended to route
+      for (CodegenParameter param : op.headerParams) {
+        path.add("Servant.Header \"" + param.baseName + "\" " + param.dataType);
+
+        String paramType = param.dataType;
+        if(param.isListContainer != null && param.isListContainer) {
+          paramType = makeQueryListType(paramType, param.collectionFormat);
+        }
+        type.add("Maybe " + paramType);
+      }
+
+      // Add the HTTP method and return type
+      String returnType = op.returnType;
+      if (returnType == null || returnType.equals("null")) {
+        returnType = "()";
+      }
+      if (returnType.indexOf(" ") >= 0) {
+        returnType = "(" + returnType + ")";
+      }
+      path.add("Servant.Verb 'Servant." + op.httpMethod.toUpperCase() + " 200 '[Servant.JSON] " + returnType);
+      type.add("Manager");
+      type.add("BaseUrl");
+      type.add("ExceptT ServantError IO " + returnType);
+      return this;
+    }
+
+
+    // Convert an HTTP path to a Servant route, including captured parameters.
+    // For example, the path /api/jobs/info/{id}/last would become:
+    //      "api" :> "jobs" :> "info" :> Capture "id" IdType :> "last"
+    // IdType is provided by the capture params.
+    private List<String> pathToServantRoute(String path, List<CodegenParameter> pathParams) {
+      // Map the capture params by their names.
+      HashMap<String, String> captureTypes = new HashMap<String, String>();
+      for (CodegenParameter param : pathParams) {
+        captureTypes.put(param.baseName, param.dataType);
+      }
+
+      // Cut off the leading slash, if it is present.
+      if (path.startsWith("/")) {
+        path = path.substring(1);
+      }
+
+      // Convert the path into a list of servant route components.
+      List<String> pathComponents = new ArrayList<String>();
+      for (String piece : path.split("/")) {
+        if (piece.startsWith("{") && piece.endsWith("}")) {
+          String name = piece.substring(1, piece.length() - 1);
+          pathComponents.add("Servant.Capture \"" + name + "\" " + captureTypes.get(name));
+        } else {
+          pathComponents.add("\"" + piece + "\"");
+        }
+      }
+
+      // Intersperse the servant route pieces with :> to construct the final API type
+      return pathComponents;
+    }
+
+    // Extract the arguments that are passed in the route path parameters
+    private List<String> pathToClientType(String path, List<CodegenParameter> pathParams) {
+      // Map the capture params by their names.
+      HashMap<String, String> captureTypes = new HashMap<String, String>();
+      for (CodegenParameter param : pathParams) {
+        captureTypes.put(param.baseName, param.dataType);
+      }
+
+      // Cut off the leading slash, if it is present.
+      if (path.startsWith("/")) {
+        path = path.substring(1);
+      }
+
+      // Convert the path into a list of servant route components.
+      List<String> type = new ArrayList<String>();
+      for (String piece : path.split("/")) {
+        if (piece.startsWith("{") && piece.endsWith("}")) {
+          String name = piece.substring(1, piece.length() - 1);
+          type.add(captureTypes.get(name));
+        }
+      }
+
+      return type;
+    }
+
+    private String makeQueryListType(String type, String collectionFormat) {
+      type = type.substring(1, type.length() - 1);
+      switch(collectionFormat) {
+        case "csv": return "(Servant.QueryList 'CommaSeparated (" + type + "))";
+        case "tsv": return "(Servant.QueryList 'TabSeparated (" + type + "))";
+        case "ssv": return "(Servant.QueryList 'SpaceSeparated (" + type + "))";
+        case "pipes": return "(Servant.QueryList 'PipeSeparated (" + type + "))";
+        case "multi": return "(Servant.QueryList 'MultiParamArray (" + type + "))";
+        default:
+          throw new NotImplementedException();
+      }
+    }
   }
 
 }

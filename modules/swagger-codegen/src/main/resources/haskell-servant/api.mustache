@@ -18,13 +18,12 @@ module {{package}}.{{classname}} (
 import GHC.Generics
 import Data.Proxy
 import qualified Servant.API as Servant
+import Network.HTTP.Client (Manager)
 import Servant.API ((:<|>)(..),(:>))
+import Servant.Common.BaseUrl (BaseUrl(..))
 import Servant.Client
-import Network.URI (URI (..), URIAuth (..), parseURI)
-import Data.Maybe (fromMaybe)
-import Servant.Common.Text
-import Data.List (intercalate)
-import qualified Data.Text as T
+import Control.Monad.Except (ExceptT)
+import {{package}}.Utils
 {{#imports}}import {{import}}
 {{/imports}}
 
@@ -46,35 +45,22 @@ instance ToFormUrlEncoded Form{{#formParams}}{{baseName}}{{/formParams}} where
 {{/operations}}
 
 {{#operations}}
-type {{classname}} = {{#operation}}{{& nickname}} -- {{operationId}}{{#hasMore}}
+type {{classname}} = {{#operation}}{{& vendorExtensions.x-routeType}} -- {{operationId}}{{#hasMore}}
     :<|> {{/hasMore}}{{/operation}}
 {{/operations}}
+
+{{#operations}}{{#operation}}
+-- | {{& summary}}
+{{operationId}} :: {{& vendorExtensions.x-clientType}}
+{{/operation}}{{/operations}}
 
 proxy{{classname}} :: Proxy {{classname}}
 proxy{{classname}} = Proxy
 
 {{#operations}}
 
-serverPath :: String
-serverPath = "{{basePath}}"
-
-parseHostPort :: String -> (String, Int)
-parseHostPort path = (host,port)
-    where
-        authority = case parseURI path of
-            Just x -> uriAuthority x
-            _      -> Nothing
-        (host, port) = case authority of
-            Just y -> (uriRegName y, (getPort . uriPort) y)
-            _      -> ("localhost", 8080)
-        getPort p = case (length p) of
-            0 -> 80
-            _ -> (read . drop 1) p
-
-(apihost, apiport) = parseHostPort serverPath
-
 {{#operation}}
 {{operationId}}{{#hasMore}}
     :<|> {{/hasMore}}{{/operation}}
-    = client proxy{{classname}} $ BaseUrl Http apihost apiport
+    = client proxy{{classname}}
 {{/operations}}
