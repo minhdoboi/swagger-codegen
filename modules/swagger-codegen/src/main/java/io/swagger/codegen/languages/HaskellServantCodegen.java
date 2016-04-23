@@ -144,8 +144,7 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
         "Char",
         "Double",
         "List",
-        "FilePath"
-        )
+        "FilePath")
     );
 
     typeMapping.clear();
@@ -153,7 +152,7 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     typeMapping.put("array", "List");
     typeMapping.put("set", "Set");
     typeMapping.put("boolean", "Bool");
-    typeMapping.put("string", "String");
+    typeMapping.put("string", "Text");
     typeMapping.put("int", "Int");
     typeMapping.put("long", "Integer");
     typeMapping.put("float", "Float");
@@ -161,12 +160,14 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     typeMapping.put("short", "Int");
     typeMapping.put("char", "Char");
     typeMapping.put("double", "Double");
-    typeMapping.put("DateTime", "Integer");
+    typeMapping.put("DateTime", "Int");
     // typeMapping.put("object", "Map");
     typeMapping.put("file", "FilePath");
 
     importMapping.clear();
     importMapping.put("Map", "qualified Data.Map as Map");
+    importMapping.put("Text", "Data.Text");
+    importMapping.put("Int", "Data.Int");
 
     cliOptions.add(new CliOption(CodegenConstants.MODEL_PACKAGE, CodegenConstants.MODEL_PACKAGE_DESC));
     cliOptions.add(new CliOption(CodegenConstants.API_PACKAGE, CodegenConstants.API_PACKAGE_DESC));
@@ -272,7 +273,7 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     else if (p instanceof MapProperty) {
       MapProperty mp = (MapProperty) p;
       Property inner = mp.getAdditionalProperties();
-      return "Map.Map String " + toModelName(getTypeDeclaration(inner));
+      return "Map.Map Text " + toModelName(getTypeDeclaration(inner));
     }
     return toModelName(super.getTypeDeclaration(p));
   }
@@ -431,8 +432,8 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
       }
 
       supplementalHeader.ifPresent(header -> {
-        path.add("Servant.Header \"" + header + "\" String");
-        type.add("Maybe String"); // FIXME
+        path.add("Servant.Header \"" + header + "\" Text");
+        type.add("Maybe Text"); // FIXME
       });
 
       // Add the HTTP method and return type
