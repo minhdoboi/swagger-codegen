@@ -125,10 +125,8 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
      * entire object tree available.  If the input file has a suffix of `.mustache
      * it will be processed by the template engine.  Otherwise, it will be copied
      */
-    supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
     supportingFiles.add(new SupportingFile("stack.mustache", "", "stack.yaml"));
     supportingFiles.add(new SupportingFile("Setup.mustache", "", "Setup.hs"));
-    supportingFiles.add(new SupportingFile("LICENSE", "", "LICENSE"));
 
     /**
      * Language Specific Primitives.  These types will not trigger imports by
