@@ -336,6 +336,13 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
     }
   }
 
+  @Override
+  public CodegenModel fromModel(String name, Model model, Map<String, Model> allDefinitions) {
+    CodegenModel m = super.fromModel(name, model, allDefinitions);
+    m.vendorExtensions.put("x-hasKeywords", m.vars.stream().anyMatch(p -> p.name.endsWith("_")));
+    return m;
+  }
+
   private String extractModelPackage(String name) {
     int idx = name.lastIndexOf('.');
     String modelPackage = "";

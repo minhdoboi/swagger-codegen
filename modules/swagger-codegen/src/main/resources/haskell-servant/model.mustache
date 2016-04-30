@@ -3,9 +3,12 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {{#models}}
 {{#model}}
+{{#vendorExtensions.x-hasKeywords}}
+{-# LANGUAGE TemplateHaskell #-}
+{{/vendorExtensions.x-hasKeywords}}
+
 module {{package}}.{{classname}} where
 {{/model}}
 {{/models}}
@@ -14,9 +17,11 @@ import qualified Data.Aeson
 import GHC.Generics
 {{#imports}}import {{import}}
 {{/imports}}
-
 {{#models}}
 {{#model}}
+{{#vendorExtensions.x-hasKeywords}}
+import Data.Aeson.TH (deriveJSON, defaultOptions, fieldLabelModifier)
+{{/vendorExtensions.x-hasKeywords}}
 
 -- | {{& description}}
 data {{classname}} = {{classname}}
@@ -24,7 +29,12 @@ data {{classname}} = {{classname}}
     , {{/hasMore}}{{/vars}}
     } deriving (Show, Eq, Generic)
 
+{{#vendorExtensions.x-hasKeywords}}
+$(deriveJSON defaultOptions{fieldLabelModifier = (\n -> if Prelude.last n == '_' then Prelude.take ((Prelude.length n) - 1 ) n else n)} ''{{classname}})
+{{/vendorExtensions.x-hasKeywords}}
+{{^vendorExtensions.x-hasKeywords}}
 instance Data.Aeson.FromJSON {{classname}}
 instance Data.Aeson.ToJSON {{classname}}
+{{/vendorExtensions.x-hasKeywords}}
 {{/model}}
 {{/models}}
