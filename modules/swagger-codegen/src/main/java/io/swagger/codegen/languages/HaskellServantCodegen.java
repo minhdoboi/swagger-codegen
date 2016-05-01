@@ -223,6 +223,7 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
 
     // Due to the way servant resolves types, we need a high context stack limit
     additionalProperties.put("contextStackLimit", swagger.getPaths().size() * 2 + 300);
+    importMapping.put("IntOrText", apiPackage()+ ".Utils");
 
     super.preprocessSwagger(swagger);
   }
@@ -287,7 +288,10 @@ public class HaskellServantCodegen extends DefaultCodegen implements CodegenConf
   public String getSwaggerType(Property p) {
     String swaggerType = super.getSwaggerType(p);
     String type = null;
-    if(typeMapping.containsKey(swaggerType)) {
+    if (p.getDescription() != null
+            && (p.getDescription().contains("Number or name") || p.getDescription().contains("Name or number"))) {
+      return "IntOrText";
+    } else if(typeMapping.containsKey(swaggerType)) {
       type = typeMapping.get(swaggerType);
       if(languageSpecificPrimitives.contains(type))
         return toModelName(type);

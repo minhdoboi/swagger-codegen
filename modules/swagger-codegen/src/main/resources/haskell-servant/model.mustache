@@ -13,7 +13,6 @@ module {{package}}.{{classname}} where
 {{/model}}
 {{/models}}
 
-import qualified Data.Aeson
 import GHC.Generics
 {{#imports}}import {{import}}
 {{/imports}}
@@ -21,6 +20,9 @@ import GHC.Generics
 {{#model}}
 {{#vendorExtensions.x-hasKeywords}}
 import Data.Aeson.TH (deriveJSON, defaultOptions, fieldLabelModifier)
+{{/vendorExtensions.x-hasKeywords}}
+{{^vendorExtensions.x-hasKeywords}}
+import qualified Data.Aeson
 {{/vendorExtensions.x-hasKeywords}}
 
 -- | {{& description}}

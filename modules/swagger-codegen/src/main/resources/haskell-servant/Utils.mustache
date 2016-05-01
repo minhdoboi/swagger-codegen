@@ -5,9 +5,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 module {{apiPackage}}.Utils where
 
+import Data.Aeson
 import Servant.API
+import GHC.Generics
 import qualified Data.Text as T
 import Data.Text (Text)
+import Control.Monad (mzero)
+import Data.Scientific (coefficient)
 
 -- | List of elements parsed from a query.
 newtype QueryList (p :: CollectionFormat) a = QueryList { fromQueryList :: [a] }
@@ -55,3 +59,15 @@ instance ToHttpApiData a => ToHttpApiData (QueryList 'MultiParamArray a) where
 
 formatSeparatedQueryList :: ToHttpApiData a => Char ->  QueryList p a -> Text
 formatSeparatedQueryList char = T.intercalate (T.singleton char) . map toQueryParam . fromQueryList
+
+
+newtype IntOrText = IntOrText { intOrText :: Either Int Text } deriving (Eq, Show, Generic)
+
+instance FromJSON IntOrText where
+  parseJSON (Data.Aeson.Number i) = return . IntOrText . Left . fromInteger . coefficient $ i
+  parseJSON (Data.Aeson.String s) = return . IntOrText . Right $ s
+  parseJSON _            = mzero
+
+instance ToJSON IntOrText where
+  toJSON (IntOrText (Left i))  = Data.Aeson.Number . fromInteger . toInteger $ i
+  toJSON (IntOrText (Right s)) = Data.Aeson.String s
